@@ -512,10 +512,11 @@
 
     const fl = st.phase === 'paused' ? pauseFl : FLOAT[st.floatIdx];
     const ufoY = 1 + fl;
+    const ufoXi = Math.floor(st.ufoX);
 
     if (st.phase === 'paused' && st.bubble.length > 0) {
       const bw = Math.max(...st.bubble.map(l => l.length));
-      const bx = st.ufoX + Math.floor((UFO_W - bw) / 2);
+      const bx = ufoXi + Math.floor((UFO_W - bw) / 2);
       for (let i = 0; i < st.bubble.length; i++) {
         const by = ufoY - st.bubble.length + i;
         if (by >= 0 && by < ROWS) {
@@ -534,7 +535,7 @@
       if (ry >= 0 && ry < ROWS) {
         const row = (i === 3 && st.blinkOn) ? WINDOW_ON : UFO[i];
         for (let j = 0; j < UFO_W; j++) {
-          const cx = st.ufoX + j;
+          const cx = ufoXi + j;
           if (cx >= 0 && cx < COLS && row[j] !== ' ') {
             grid[ry][cx] = row[j];
           }
@@ -543,7 +544,7 @@
     }
 
     if (st.phase !== 'paused') {
-      const bx = st.ufoX + Math.floor((UFO_W - BEAM_W) / 2);
+      const bx = ufoXi + Math.floor((UFO_W - BEAM_W) / 2);
       const beamData = BEAM[st.beamIdx % BEAM.length];
       for (let i = 0; i < BEAM_H; i++) {
         const ry = ufoY + UFO_H + i;
