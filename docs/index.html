@@ -1,0 +1,694 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ufosay — fly across your terminal</title>
+<style>
+  :root {
+    --green: #00ff41;
+    --green-dim: #00aa20;
+    --green-dark: #003b00;
+    --bg: #0a0e14;
+    --panel: #0d1219;
+    --border: #1a2a30;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    color: var(--green);
+    font-family: 'Courier New', 'Consolas', 'Monaco', monospace;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    overflow-x: hidden;
+    position: relative;
+  }
+  .star {
+    position: fixed;
+    width: 2px;
+    height: 2px;
+    background: #fff;
+    border-radius: 50%;
+    pointer-events: none;
+    animation: twinkle var(--dur) ease-in-out infinite;
+    opacity: 0;
+  }
+  @keyframes twinkle {
+    0%, 100% { opacity: 0; }
+    50% { opacity: var(--max, 0.8); }
+  }
+
+  .container {
+    width: 100%;
+    max-width: 780px;
+    padding: 20px 16px 40px;
+    position: relative;
+    z-index: 1;
+  }
+
+  header {
+    text-align: center;
+    padding: 40px 0 30px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 30px;
+  }
+  header h1 {
+    font-size: 2.8rem;
+    letter-spacing: 6px;
+    text-transform: uppercase;
+    text-shadow: 0 0 20px var(--green), 0 0 60px var(--green-dim);
+    line-height: 1.2;
+  }
+  header h1 .block {
+    display: inline-block;
+    background: var(--green);
+    color: var(--bg);
+    padding: 0 8px;
+    line-height: 1;
+  }
+  header p {
+    color: var(--green-dim);
+    font-size: 1rem;
+    margin-top: 10px;
+    letter-spacing: 2px;
+  }
+
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 20px;
+    margin-bottom: 24px;
+  }
+  .panel-title {
+    font-size: 0.75rem;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--green-dim);
+    margin-bottom: 14px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  #terminal {
+    background: #05080c;
+    border: 1px solid #0f1a1f;
+    border-radius: 3px;
+    padding: 12px 10px;
+    position: relative;
+    overflow: hidden;
+    min-height: 240px;
+    width: 100%;
+    box-shadow: inset 0 0 60px rgba(0,255,65,0.03);
+  }
+  #terminal pre {
+    font-family: 'Courier New', 'Consolas', monospace;
+    font-size: 13px;
+    line-height: 1.15;
+    color: var(--green);
+    white-space: pre;
+    margin: 0;
+    text-shadow: 0 0 4px rgba(0,255,65,0.3);
+    letter-spacing: 0;
+  }
+  #terminal::after {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: repeating-linear-gradient(
+      0deg, transparent, transparent 2px,
+      rgba(0,0,0,0.08) 2px, rgba(0,0,0,0.08) 4px
+    );
+    pointer-events: none;
+  }
+
+  .controls {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-top: 14px;
+  }
+  .controls input {
+    flex: 1;
+    min-width: 160px;
+    background: #05080c;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    color: var(--green);
+    font-family: inherit;
+    font-size: 0.85rem;
+    padding: 9px 12px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .controls input:focus {
+    border-color: var(--green);
+  }
+  .controls input::placeholder { color: #1a4a1a; }
+  .btn {
+    background: transparent;
+    border: 1px solid var(--green);
+    border-radius: 3px;
+    color: var(--green);
+    font-family: inherit;
+    font-size: 0.85rem;
+    padding: 9px 18px;
+    cursor: pointer;
+    transition: all 0.15s;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    white-space: nowrap;
+  }
+  .btn:hover {
+    background: var(--green);
+    color: var(--bg);
+    box-shadow: 0 0 20px rgba(0,255,65,0.25);
+  }
+  .btn-copy {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border-color: var(--green-dim);
+    color: var(--green-dim);
+    font-size: 0.8rem;
+    padding: 8px 14px;
+  }
+  .btn-copy:hover {
+    background: var(--green-dim);
+    color: var(--bg);
+    border-color: var(--green-dim);
+  }
+  .btn-copy.copied {
+    border-color: var(--green);
+    color: var(--green);
+  }
+  .btn-copy.copied:hover {
+    background: var(--green);
+  }
+
+  .features {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 12px;
+  }
+  .feature {
+    text-align: center;
+    padding: 16px 10px;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    transition: border-color 0.2s;
+  }
+  .feature:hover {
+    border-color: var(--green-dim);
+  }
+  .feature .icon {
+    font-size: 1.4rem;
+    margin-bottom: 6px;
+    display: block;
+  }
+  .feature .label {
+    font-size: 0.7rem;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--green-dim);
+  }
+  .feature .desc {
+    font-size: 0.75rem;
+    color: #2a6a3a;
+    margin-top: 4px;
+  }
+
+  .install-box {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    background: #05080c;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    overflow: hidden;
+    margin-top: 10px;
+  }
+  .install-box code {
+    flex: 1;
+    padding: 10px 14px;
+    font-size: 0.9rem;
+    color: var(--green);
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+  .install-box .btn-copy {
+    border: none;
+    border-left: 1px solid var(--border);
+    border-radius: 0;
+    height: 100%;
+    padding: 10px 16px;
+  }
+
+  .trigger-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.8rem;
+    margin-top: 8px;
+  }
+  .trigger-table th, .trigger-table td {
+    text-align: left;
+    padding: 5px 10px;
+    border-bottom: 1px solid var(--border);
+  }
+  .trigger-table th {
+    color: var(--green-dim);
+    font-size: 0.65rem;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    font-weight: normal;
+  }
+  .trigger-table td { color: #2a8a3a; }
+  .trigger-table td:first-child { color: var(--green); }
+
+  footer {
+    text-align: center;
+    padding-top: 20px;
+    border-top: 1px solid var(--border);
+    margin-top: 10px;
+  }
+  footer a {
+    color: var(--green-dim);
+    text-decoration: none;
+    transition: color 0.2s;
+    font-size: 0.85rem;
+  }
+  footer a:hover {
+    color: var(--green);
+  }
+
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: var(--bg); }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  @media (max-width: 540px) {
+    header h1 { font-size: 1.8rem; letter-spacing: 3px; }
+    .container { padding: 12px 10px 30px; }
+    #terminal { padding: 8px 6px; min-height: 180px; }
+    #terminal pre { font-size: 10px; }
+    .panel { padding: 14px; }
+    .features { grid-template-columns: repeat(2, 1fr); }
+    .install-box code { font-size: 0.75rem; padding: 8px 10px; }
+    .controls input { font-size: 0.75rem; }
+    .btn { font-size: 0.75rem; padding: 7px 12px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <header>
+    <h1>██ <span class="block">ufosay</span> ██</h1>
+    <p>like sl meets cowsay — right in your terminal</p>
+  </header>
+
+  <div class="panel">
+    <div class="panel-title">&#x25B6; DEMO</div>
+    <div id="terminal"><pre id="screen"></pre></div>
+    <div class="controls">
+      <input type="text" id="msgInput" placeholder="Type your message..." value="We will conquer the earth!!" spellcheck="false">
+      <button class="btn" id="flyBtn">&#x25B6; FLY</button>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-title">&#x25A0; FEATURES</div>
+    <div class="features">
+      <div class="feature">
+        <span class="icon">&#x26A1;</span>
+        <span class="label">60 fps</span>
+        <span class="desc">smooth as silk</span>
+      </div>
+      <div class="feature">
+        <span class="icon">&#x1F4AC;</span>
+        <span class="label">Speech Bubble</span>
+        <span class="desc">cowsay-style</span>
+      </div>
+      <div class="feature">
+        <span class="icon">&#x23F8;</span>
+        <span class="label">Mid-screen Pause</span>
+        <span class="desc">read before fly-by</span>
+      </div>
+      <div class="feature">
+        <span class="icon">&#x1F300;</span>
+        <span class="label">Cyberpunk UFO</span>
+        <span class="desc">Airgeddon-style</span>
+      </div>
+      <div class="feature">
+        <span class="icon">&#x1F310;</span>
+        <span class="label">Cross-platform</span>
+        <span class="desc">Linux / macOS / Win</span>
+      </div>
+      <div class="feature">
+        <span class="icon">&#x1F514;</span>
+        <span class="label">Mistype Triggers</span>
+        <span class="desc">ks, cl, xl, lw, lz</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-title">&#x25A0; INSTALL</div>
+    <p style="font-size:0.8rem;color:var(--green-dim);margin-bottom:6px;">One command, anywhere:</p>
+    <div class="install-box">
+      <code>$ pip install ufosay</code>
+      <button class="btn btn-copy" id="copyBtn">&#x1F4CB; COPY</button>
+    </div>
+    <p style="font-size:0.7rem;color:#1a5a2a;margin-top:8px;">
+      Works on Linux, macOS, Windows &mdash; Python 3.8+
+    </p>
+  </div>
+
+  <div class="panel">
+    <div class="panel-title">&#x25A0; MISTYPE TRIGGERS</div>
+    <p style="font-size:0.75rem;color:var(--green-dim);margin-bottom:10px;">
+      Set these up with install scripts and never type <code style="color:var(--green);">ls</code> wrong again:
+    </p>
+    <table class="trigger-table">
+      <tr><th>Typo</th><th>Shadows</th><th>What happens</th></tr>
+      <tr><td>ks</td><td>—</td><td>ufosay launches</td></tr>
+      <tr><td>cl</td><td>—</td><td>ufosay launches</td></tr>
+      <tr><td>xl</td><td>—</td><td>ufosay launches</td></tr>
+      <tr><td>lw</td><td>—</td><td>ufosay launches</td></tr>
+      <tr><td>lz</td><td>—</td><td>ufosay launches</td></tr>
+    </table>
+  </div>
+
+  <footer>
+    <a href="https://github.com/mohit-kumarr/ufosay" target="_blank" rel="noopener">&#x2B50; Star on GitHub &rarr;</a>
+  </footer>
+</div>
+
+<script>
+(function(){
+  // ── constants ──
+  const COLS = 52;
+  const ROWS = 14;
+
+  const UFO = [
+    '        _.---._        ',
+    '      .\'       \'.      ',
+    '  _.-~===========~-._  ',
+    ' (___________________) ',
+    '       \\_______/       '
+  ];
+  const WINDOW_ON  = ' (##_________##) ';
+  const UFO_W = 23;
+  const UFO_H = 5;
+
+  const BEAM = [
+    ['\\', '|', '/'],
+    ['|', '|', '|'],
+    ['/', '|', '\\']
+  ];
+  const BEAM_W = 3;
+  const BEAM_H = 3;
+
+  const FLOAT = [0, -1, -2, -1, 0, 1, 2, 1];
+  const GROUND_CYCLE = '~~~,.,~~~~~~,.,~~~~~~,.,~~~~~~,.,~~~~~~,.,~~~~';
+  const SPEED = 26; // cols/sec
+
+  // ── DOM refs ──
+  const screen = document.getElementById('screen');
+  const input  = document.getElementById('msgInput');
+  const flyBtn = document.getElementById('flyBtn');
+  const copyBtn = document.getElementById('copyBtn');
+
+  // ── stars ──
+  function spawnStars() {
+    for (let i = 0; i < 40; i++) {
+      const s = document.createElement('div');
+      s.className = 'star';
+      s.style.left = Math.random() * 100 + '%';
+      s.style.top  = Math.random() * 100 + '%';
+      s.style.setProperty('--dur', (2 + Math.random() * 4) + 's');
+      s.style.setProperty('--max', (0.3 + Math.random() * 0.7));
+      s.style.animationDelay = Math.random() * 4 + 's';
+      s.style.width = s.style.height = (1 + Math.random() * 1.5) + 'px';
+      document.body.appendChild(s);
+    }
+  }
+  spawnStars();
+
+  // ── bubble builder ──
+  function makeBubble(text, maxWidth) {
+    if (!text || !text.trim()) return [];
+    const words = text.trim().split(/\s+/);
+    const lines = [];
+    let cur = '';
+    for (const w of words) {
+      const test = cur ? cur + ' ' + w : w;
+      if (test.length <= maxWidth) { cur = test; }
+      else { lines.push(cur); cur = w; }
+    }
+    if (cur) lines.push(cur);
+    const cw = Math.max(...lines.map(l => l.length));
+    const pw = cw + 2;
+    const out = [];
+    if (lines.length === 1) {
+      out.push(' ' + '_'.repeat(pw));
+      out.push('< ' + lines[0].padEnd(cw) + ' >');
+      out.push(' ' + '-'.repeat(pw));
+    } else {
+      out.push(' ' + '_'.repeat(pw));
+      for (let i = 0; i < lines.length; i++) {
+        const side = (i === 0) ? '/' : (i === lines.length - 1) ? '\\' : '|';
+        out.push(side + ' ' + lines[i].padEnd(cw) + ' ' + side);
+      }
+      out.push(' ' + '-'.repeat(pw));
+    }
+    return out.map(r => r.replace(/ /g, '\xa0'));
+  }
+
+  // ── stars (in-terminal) ──
+  let stars = [];
+  function initStars() {
+    stars = [];
+    for (let i = 0; i < 18; i++) {
+      stars.push({
+        x: Math.floor(Math.random() * COLS),
+        y: Math.floor(Math.random() * (ROWS - 3)),
+        ch: ['\u00b7', '*', '.'][Math.floor(Math.random() * 3)]
+      });
+    }
+  }
+  initStars();
+
+  // ── state ──
+  let state = {
+    ufoX: COLS,
+    phase: 'entering',
+    phaseStart: 0,
+    paused: false,
+    floatIdx: 0,
+    floatTimer: 0,
+    blinkOn: false,
+    blinkTimer: 0,
+    beamIdx: 0,
+    beamTimer: 0,
+    msg: 'We will conquer the earth!!',
+    bubble: [],
+    animId: null,
+    loopTimeout: null
+  };
+
+  function buildFrame(st, pauseFl) {
+    const grid = Array.from({length: ROWS}, () => Array(COLS).fill(' '));
+
+    for (const s of stars) {
+      if (s.y < ROWS && s.x < COLS) grid[s.y][s.x] = s.ch;
+    }
+
+    const gy = ROWS - 1;
+    for (let c = 0; c < COLS; c++) {
+      grid[gy][c] = GROUND_CYCLE[c % GROUND_CYCLE.length];
+    }
+
+    const fl = st.phase === 'paused' ? pauseFl : FLOAT[st.floatIdx];
+    const ufoY = 1 + fl;
+
+    if (st.phase === 'paused' && st.bubble.length > 0) {
+      const bw = Math.max(...st.bubble.map(l => l.length));
+      const bx = st.ufoX + Math.floor((UFO_W - bw) / 2);
+      for (let i = 0; i < st.bubble.length; i++) {
+        const by = ufoY - st.bubble.length + i;
+        if (by >= 0 && by < ROWS) {
+          for (let j = 0; j < st.bubble[i].length; j++) {
+            const cx = bx + j;
+            if (cx >= 0 && cx < COLS) {
+              grid[by][cx] = st.bubble[i][j];
+            }
+          }
+        }
+      }
+    }
+
+    for (let i = 0; i < UFO_H; i++) {
+      const ry = ufoY + i;
+      if (ry >= 0 && ry < ROWS) {
+        const row = (i === 3 && st.blinkOn) ? WINDOW_ON : UFO[i];
+        for (let j = 0; j < UFO_W; j++) {
+          const cx = st.ufoX + j;
+          if (cx >= 0 && cx < COLS && row[j] !== ' ') {
+            grid[ry][cx] = row[j];
+          }
+        }
+      }
+    }
+
+    if (st.phase !== 'paused') {
+      const bx = st.ufoX + Math.floor((UFO_W - BEAM_W) / 2);
+      const beamData = BEAM[st.beamIdx % BEAM.length];
+      for (let i = 0; i < BEAM_H; i++) {
+        const ry = ufoY + UFO_H + i;
+        if (ry < ROWS) {
+          for (let j = 0; j < BEAM_W; j++) {
+            const cx = bx + j;
+            if (cx >= 0 && cx < COLS) {
+              grid[ry][cx] = beamData[j];
+            }
+          }
+        }
+      }
+    }
+
+    return grid.map(row => row.join('')).join('\n');
+  }
+
+  let animRunning = false;
+  let prevTime = 0;
+  let pauseFloat = 0;
+  let waitingForRestart = false;
+
+  function tick(timestamp) {
+    if (!animRunning) return;
+    if (!prevTime) prevTime = timestamp;
+    const dt = Math.min((timestamp - prevTime) / 1000, 0.05);
+    prevTime = timestamp;
+
+    const centerX = Math.floor((COLS - UFO_W) / 2);
+
+    if (state.phase === 'entering') {
+      state.ufoX -= SPEED * dt;
+      if (state.ufoX <= centerX) {
+        state.ufoX = centerX;
+        state.phase = 'paused';
+        state.phaseStart = timestamp;
+        pauseFloat = FLOAT[state.floatIdx];
+        state.bubble = makeBubble(state.msg, 38);
+      }
+    } else if (state.phase === 'paused') {
+      const words = state.msg.trim().split(/\s+/).filter(Boolean).length;
+      const pauseDur = Math.max(0.5, words * 0.5);
+      if ((timestamp - state.phaseStart) / 1000 >= pauseDur) {
+        state.phase = 'exiting';
+        state.bubble = [];
+      }
+    } else if (state.phase === 'exiting') {
+      state.ufoX -= SPEED * dt;
+      if (state.ufoX + UFO_W < 0) {
+        animRunning = false;
+        waitingForRestart = true;
+        state.loopTimeout = setTimeout(() => {
+          resetAnim();
+          startAnim();
+        }, 2000);
+        return;
+      }
+    }
+
+    state.floatTimer += dt;
+    if (state.floatTimer >= 0.15) {
+      state.floatTimer = 0;
+      state.floatIdx = (state.floatIdx + 1) % FLOAT.length;
+    }
+    state.blinkTimer += dt;
+    if (state.blinkTimer >= 0.35) {
+      state.blinkTimer = 0;
+      state.blinkOn = !state.blinkOn;
+    }
+    state.beamTimer += dt;
+    if (state.beamTimer >= 0.12) {
+      state.beamTimer = 0;
+      state.beamIdx = (state.beamIdx + 1) % BEAM.length;
+    }
+
+    screen.textContent = buildFrame(state, pauseFloat);
+    state.animId = requestAnimationFrame(tick);
+  }
+
+  function resetAnim() {
+    if (state.loopTimeout) { clearTimeout(state.loopTimeout); state.loopTimeout = null; }
+    if (state.animId) { cancelAnimationFrame(state.animId); state.animId = null; }
+    state.ufoX = COLS;
+    state.phase = 'entering';
+    state.phaseStart = 0;
+    state.bubble = [];
+    waitingForRestart = false;
+    animRunning = false;
+    prevTime = 0;
+  }
+
+  function startAnim() {
+    if (animRunning) return;
+    animRunning = true;
+    prevTime = 0;
+    state.animId = requestAnimationFrame(tick);
+  }
+
+  function fly(msg) {
+    resetAnim();
+    state.msg = msg || 'ufosay!';
+    initStars();
+    startAnim();
+  }
+
+  // ── auto-start ──
+  fly(state.msg);
+
+  // ── fly button ──
+  flyBtn.addEventListener('click', function() {
+    fly(input.value || 'ufosay!');
+  });
+  input.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') fly(input.value || 'ufosay!');
+  });
+
+  // ── copy button ──
+  copyBtn.addEventListener('click', function() {
+    navigator.clipboard.writeText('pip install ufosay').then(function() {
+      var orig = copyBtn.innerHTML;
+      copyBtn.innerHTML = '\u2713 COPIED';
+      copyBtn.classList.add('copied');
+      setTimeout(function() {
+        copyBtn.innerHTML = orig;
+        copyBtn.classList.remove('copied');
+      }, 2000);
+    }).catch(function() {
+      var ta = document.createElement('textarea');
+      ta.value = 'pip install ufosay';
+      ta.style.position = 'fixed';
+      ta.style.left = '-9999px';
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+      var orig = copyBtn.innerHTML;
+      copyBtn.innerHTML = '\u2713 COPIED';
+      copyBtn.classList.add('copied');
+      setTimeout(function() {
+        copyBtn.innerHTML = orig;
+        copyBtn.classList.remove('copied');
+      }, 2000);
+    });
+  });
+})();
+</script>
+</body>
+</html>
