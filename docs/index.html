@@ -99,6 +99,7 @@
     padding: 12px 10px;
     position: relative;
     overflow: hidden;
+    height: 340px;
     min-height: 240px;
     width: 100%;
     box-shadow: inset 0 0 60px rgba(0,255,65,0.03);
@@ -290,7 +291,7 @@
   @media (max-width: 540px) {
     header h1 { font-size: 1.8rem; letter-spacing: 3px; }
     .container { padding: 12px 10px 30px; }
-    #terminal { padding: 8px 6px; min-height: 180px; }
+    #terminal { padding: 8px 6px; height: 220px; min-height: 180px; }
     #terminal pre { font-size: 10px; }
     .panel { padding: 14px; }
     .features { grid-template-columns: repeat(2, 1fr); }
@@ -305,7 +306,7 @@
 <div class="container">
   <header>
     <h1>██ <span class="block">ufosay</span> ██</h1>
-    <p>like sl meets cowsay — right in your terminal</p>
+    <p>a flying saucer flies across your terminal</p>
   </header>
 
   <div class="panel">
@@ -328,7 +329,7 @@
       <div class="feature">
         <span class="icon">&#x1F4AC;</span>
         <span class="label">Speech Bubble</span>
-        <span class="desc">cowsay-style</span>
+        <span class="desc">word-wrapped border</span>
       </div>
       <div class="feature">
         <span class="icon">&#x23F8;</span>
@@ -368,29 +369,57 @@
   <div class="panel">
     <div class="panel-title">&#x25A0; MISTYPE TRIGGERS</div>
     <p style="font-size:0.75rem;color:var(--green-dim);margin-bottom:10px;">
-      Set these up with install scripts and never type <code style="color:var(--green);">ls</code> wrong again:
+      Typo a command and see ufosay appear instead:
     </p>
     <table class="trigger-table">
-      <tr><th>Typo</th><th>Shadows</th><th>What happens</th></tr>
-      <tr><td>ks</td><td>—</td><td>ufosay launches</td></tr>
-      <tr><td>cl</td><td>—</td><td>ufosay launches</td></tr>
-      <tr><td>xl</td><td>—</td><td>ufosay launches</td></tr>
-      <tr><td>lw</td><td>—</td><td>ufosay launches</td></tr>
-      <tr><td>lz</td><td>—</td><td>ufosay launches</td></tr>
+      <tr><th>Typo</th><th>Result</th></tr>
+      <tr><td>ks</td><td>ufosay appears</td></tr>
+      <tr><td>cl</td><td>ufosay appears</td></tr>
+      <tr><td>xl</td><td>ufosay appears</td></tr>
+      <tr><td>lw</td><td>ufosay appears</td></tr>
+      <tr><td>lz</td><td>ufosay appears</td></tr>
     </table>
   </div>
 
   <footer>
-    <a href="https://github.com/mohit-kumarr/ufosay" target="_blank" rel="noopener">&#x2B50; Star on GitHub &rarr;</a>
+    <a href="https://github.com/mohit-kumarr/ufosay" target="_blank" rel="noopener">&#x2B50; Star on GitHub</a>
+    <span style="color:var(--border);margin:0 10px;">|</span>
+    <a href="https://pypi.org/project/ufosay/" target="_blank" rel="noopener">&#x1F4E6; View on PyPI</a>
   </footer>
 </div>
 
 <script>
 (function(){
-  // ── constants ──
-  const COLS = 52;
-  const ROWS = 14;
+  // ── terminal sizing ──
+  let COLS = 60;
+  let ROWS = 16;
 
+  function calcTermSize() {
+    const term = document.getElementById('terminal');
+    if (!term || term.clientWidth === 0) return false;
+    const style = getComputedStyle(term);
+    const padX = parseFloat(style.paddingLeft) + parseFloat(style.paddingRight);
+    const padY = parseFloat(style.paddingTop) + parseFloat(style.paddingBottom);
+    const pre = document.getElementById('screen');
+    const ps = getComputedStyle(pre);
+    const meas = document.createElement('span');
+    meas.textContent = 'W';
+    meas.style.cssText = 'position:absolute;visibility:hidden;font-family:' + ps.fontFamily + ';font-size:' + ps.fontSize + ';line-height:' + ps.lineHeight;
+    document.body.appendChild(meas);
+    const cw = meas.offsetWidth;
+    const ch = meas.offsetHeight;
+    document.body.removeChild(meas);
+    const newCols = Math.max(30, Math.floor((term.clientWidth - padX) / cw) - 1);
+    const newRows = Math.max(8, Math.floor((term.clientHeight - padY) / ch) - 1);
+    if (newCols !== COLS || newRows !== ROWS) {
+      COLS = newCols;
+      ROWS = newRows;
+      return true;
+    }
+    return false;
+  }
+
+  // ── constants ──
   const UFO = [
     '        _.---._        ',
     '      .\'       \'.      ',
@@ -398,7 +427,7 @@
     ' (___________________) ',
     '       \\_______/       '
   ];
-  const WINDOW_ON  = ' (##_________##) ';
+  const WINDOW_ON = ' (##_________##) ';
   const UFO_W = 23;
   const UFO_H = 5;
 
@@ -412,7 +441,8 @@
 
   const FLOAT = [0, -1, -2, -1, 0, 1, 2, 1];
   const GROUND_CYCLE = '~~~,.,~~~~~~,.,~~~~~~,.,~~~~~~,.,~~~~~~,.,~~~~';
-  const SPEED = 26; // cols/sec
+
+  let SPEED;
 
   // ── DOM refs ──
   const screen = document.getElementById('screen');
@@ -420,7 +450,7 @@
   const flyBtn = document.getElementById('flyBtn');
   const copyBtn = document.getElementById('copyBtn');
 
-  // ── stars ──
+  // ── bg stars ──
   function spawnStars() {
     for (let i = 0; i < 40; i++) {
       const s = document.createElement('div');
@@ -466,11 +496,12 @@
     return out.map(r => r.replace(/ /g, '\xa0'));
   }
 
-  // ── stars (in-terminal) ──
+  // ── in-terminal stars ──
   let stars = [];
   function initStars() {
     stars = [];
-    for (let i = 0; i < 18; i++) {
+    const cnt = Math.min(24, Math.floor(ROWS * 1.5));
+    for (let i = 0; i < cnt; i++) {
       stars.push({
         x: Math.floor(Math.random() * COLS),
         y: Math.floor(Math.random() * (ROWS - 3)),
@@ -478,7 +509,6 @@
       });
     }
   }
-  initStars();
 
   // ── state ──
   let state = {
@@ -500,20 +530,16 @@
 
   function buildFrame(st, pauseFl) {
     const grid = Array.from({length: ROWS}, () => Array(COLS).fill(' '));
-
     for (const s of stars) {
       if (s.y < ROWS && s.x < COLS) grid[s.y][s.x] = s.ch;
     }
-
     const gy = ROWS - 1;
     for (let c = 0; c < COLS; c++) {
       grid[gy][c] = GROUND_CYCLE[c % GROUND_CYCLE.length];
     }
-
     const fl = st.phase === 'paused' ? pauseFl : FLOAT[st.floatIdx];
     const ufoY = 1 + fl;
     const ufoXi = Math.floor(st.ufoX);
-
     if (st.phase === 'paused' && st.bubble.length > 0) {
       const bw = Math.max(...st.bubble.map(l => l.length));
       const bx = ufoXi + Math.floor((UFO_W - bw) / 2);
@@ -522,59 +548,47 @@
         if (by >= 0 && by < ROWS) {
           for (let j = 0; j < st.bubble[i].length; j++) {
             const cx = bx + j;
-            if (cx >= 0 && cx < COLS) {
-              grid[by][cx] = st.bubble[i][j];
-            }
+            if (cx >= 0 && cx < COLS) grid[by][cx] = st.bubble[i][j];
           }
         }
       }
     }
-
     for (let i = 0; i < UFO_H; i++) {
       const ry = ufoY + i;
       if (ry >= 0 && ry < ROWS) {
         const row = (i === 3 && st.blinkOn) ? WINDOW_ON : UFO[i];
         for (let j = 0; j < UFO_W; j++) {
           const cx = ufoXi + j;
-          if (cx >= 0 && cx < COLS && row[j] !== ' ') {
-            grid[ry][cx] = row[j];
-          }
+          if (cx >= 0 && cx < COLS && row[j] !== ' ') grid[ry][cx] = row[j];
         }
       }
     }
-
     if (st.phase !== 'paused') {
       const bx = ufoXi + Math.floor((UFO_W - BEAM_W) / 2);
-      const beamData = BEAM[st.beamIdx % BEAM.length];
+      const bd = BEAM[st.beamIdx % BEAM.length];
       for (let i = 0; i < BEAM_H; i++) {
         const ry = ufoY + UFO_H + i;
         if (ry < ROWS) {
           for (let j = 0; j < BEAM_W; j++) {
             const cx = bx + j;
-            if (cx >= 0 && cx < COLS) {
-              grid[ry][cx] = beamData[j];
-            }
+            if (cx >= 0 && cx < COLS) grid[ry][cx] = bd[j];
           }
         }
       }
     }
-
     return grid.map(row => row.join('')).join('\n');
   }
 
   let animRunning = false;
   let prevTime = 0;
   let pauseFloat = 0;
-  let waitingForRestart = false;
 
   function tick(timestamp) {
     if (!animRunning) return;
     if (!prevTime) prevTime = timestamp;
     const dt = Math.min((timestamp - prevTime) / 1000, 0.05);
     prevTime = timestamp;
-
     const centerX = Math.floor((COLS - UFO_W) / 2);
-
     if (state.phase === 'entering') {
       state.ufoX -= SPEED * dt;
       if (state.ufoX <= centerX) {
@@ -582,7 +596,7 @@
         state.phase = 'paused';
         state.phaseStart = timestamp;
         pauseFloat = FLOAT[state.floatIdx];
-        state.bubble = makeBubble(state.msg, 38);
+        state.bubble = makeBubble(state.msg, Math.floor(COLS * 0.38));
       }
     } else if (state.phase === 'paused') {
       const words = state.msg.trim().split(/\s+/).filter(Boolean).length;
@@ -595,15 +609,13 @@
       state.ufoX -= SPEED * dt;
       if (state.ufoX + UFO_W < 0) {
         animRunning = false;
-        waitingForRestart = true;
-        state.loopTimeout = setTimeout(() => {
+        state.loopTimeout = setTimeout(function() {
           resetAnim();
           startAnim();
         }, 2000);
         return;
       }
     }
-
     state.floatTimer += dt;
     if (state.floatTimer >= 0.15) {
       state.floatTimer = 0;
@@ -619,7 +631,6 @@
       state.beamTimer = 0;
       state.beamIdx = (state.beamIdx + 1) % BEAM.length;
     }
-
     screen.textContent = buildFrame(state, pauseFloat);
     state.animId = requestAnimationFrame(tick);
   }
@@ -631,13 +642,13 @@
     state.phase = 'entering';
     state.phaseStart = 0;
     state.bubble = [];
-    waitingForRestart = false;
     animRunning = false;
     prevTime = 0;
   }
 
   function startAnim() {
     if (animRunning) return;
+    SPEED = Math.round(COLS * 0.5);
     animRunning = true;
     prevTime = 0;
     state.animId = requestAnimationFrame(tick);
@@ -650,7 +661,18 @@
     startAnim();
   }
 
-  // ── auto-start ──
+  function handleResize() {
+    if (calcTermSize()) {
+      const was = animRunning;
+      resetAnim();
+      initStars();
+      if (was) startAnim();
+    }
+  }
+
+  // ── init ──
+  calcTermSize();
+  initStars();
   fly(state.msg);
 
   // ── fly button ──
@@ -659,6 +681,13 @@
   });
   input.addEventListener('keydown', function(e) {
     if (e.key === 'Enter') fly(input.value || 'ufosay!');
+  });
+
+  // ── resize ──
+  var rt;
+  window.addEventListener('resize', function() {
+    clearTimeout(rt);
+    rt = setTimeout(handleResize, 200);
   });
 
   // ── copy button ──
